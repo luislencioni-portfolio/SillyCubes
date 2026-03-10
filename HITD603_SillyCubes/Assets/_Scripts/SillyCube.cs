@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.Networking;   // ---------------------------------------------------------- Luis Lencioni - Additions to the code. I had to add this in order to call sounds from URL. That's the only addition to the top here.
 
-public class SillyCube : MonoBehaviour
+public class SillyCube_LL: MonoBehaviour
 {
     /// <summary>
     /// Rules of Silly Cube:
@@ -45,6 +45,7 @@ public class SillyCube : MonoBehaviour
 
         // Start preloading audio
         StartCoroutine(PreloadAudio());
+
     }
 
     // Update is called once per frame, as fast as the computer will run it. Load dependant.
@@ -120,97 +121,99 @@ public class SillyCube : MonoBehaviour
     //Audio Source
     string[] audioURLs = new string[]
     {
-        "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/e78287c3e6b6bba2ffd7aeffbe3f3312d0a241a8/freesound_community-funny-yay-6273.mp3",
-        "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/abe25b3069ba1d1650c72e536b8152313d1ae309/freesound_community-angry-grunt-103204.mp3",
-        "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/c4caa53d21af62c8a89466c66c4c28c801efd800/freesound_community-fart-83471.mp3"
+       // "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/16f4546057f135a3b21db73926fa44d5c03b821a/Audios/freesound_community-funny-yay-6273.mp3",
+      //  "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/16f4546057f135a3b21db73926fa44d5c03b821a/Audios/freesound_community-angry-grunt-103204.mp3" ,
+       // "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/16f4546057f135a3b21db73926fa44d5c03b821a/Audios/freesound_community-fart-83471.mp3"
     };
     AudioClip[] downloadedClips;
 
-    Vector3 angryOffset;
-    float angryTimer = 0f;
-    float angryDuration = 0.5f;
-    float shakeStrength = 0.2f;
-    float rainbowHue = 0f;
-    float rainbowSpeed = 2f;
-    float soundCooldown = 0.5f;   
-    float lastSoundTime = -10f;   
+Vector3 angryOffset;
+float angryTimer = 0f;
+float angryDuration = 0.5f;
+float shakeStrength = 0.2f;
+float rainbowHue = 0f;
+float rainbowSpeed = 2f;
+float soundCooldown = 2f;   
+float lastSoundTime = -10f;   
 
-    void startCube()
+void startCube()
+{
+    GetComponent<Renderer>().material.color = Color.black;
+    audioSource = GetComponent<AudioSource>();
+    if (!audioSource)
     {
-        GetComponent<Renderer>().material.color = Color.black;
-        audioSource = GetComponent<AudioSource>();
-        if (!audioSource)
+        audioSource = gameObject.AddComponent<AudioSource>();
+    }
+}
+
+void updateCube()
+{
+    Renderer r = GetComponent<Renderer>();
+
+    if (angryTimer > 0)
+    {
+        angryTimer -= Time.deltaTime;
+
+        // Shake effect
+        angryOffset = Random.insideUnitSphere * shakeStrength;
+        transform.position += angryOffset;
+
+        // Animate rainbow color
+        rainbowHue += Time.deltaTime * rainbowSpeed;
+        if (rainbowHue > 1f) rainbowHue -= 1f;
+        Color rainbowColor = Color.HSVToRGB(rainbowHue, 1f, 1f);
+        r.material.color = rainbowColor;
+    }
+    else
+    {
+        // Calm down
+        r.material.color = Vector4.MoveTowards(r.material.color, Color.black, Time.deltaTime * 2f);
+    }
+}
+
+void contactOtherCube(Collider other)
+{
+if (other is BoxCollider && gameObject.GetInstanceID() < other.gameObject.GetInstanceID())
+{
+    Debug.Log(name + " reacted to " + other.gameObject.name);
+
+    angryTimer = angryDuration;
+    shakeStrength = Random.Range(0.1f, 0.3f);
+
+    if (audioSource != null && downloadedClips != null && downloadedClips.Length > 0)
+    {
+        AudioClip clipToPlay = downloadedClips[Random.Range(0, downloadedClips.Length)];
+        if (clipToPlay != null && Time.time - lastSoundTime > soundCooldown)
         {
-            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.PlayOneShot(clipToPlay, 0.7f);
+            lastSoundTime = Time.time;
+            soundCooldown = Random.Range(1.5f, 3f);
         }
     }
+}
+}
 
-    void updateCube()
+// Loading multiple-files from URL
+IEnumerator PreloadAudio()
+{
+    downloadedClips = new AudioClip[audioURLs.Length];
+
+    for (int i = 0; i < audioURLs.Length; i++)
     {
-        Renderer r = GetComponent<Renderer>();
+        UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(audioURLs[i], AudioType.MPEG);
+        yield return www.SendWebRequest();
 
-        if (angryTimer > 0)
+        if (www.result == UnityWebRequest.Result.Success)
         {
-            angryTimer -= Time.deltaTime;
-
-            // Shake effect
-            angryOffset = Random.insideUnitSphere * shakeStrength;
-            transform.position += angryOffset;
-
-            // Animate rainbow color
-            rainbowHue += Time.deltaTime * rainbowSpeed;
-            if (rainbowHue > 1f) rainbowHue -= 1f;
-            Color rainbowColor = Color.HSVToRGB(rainbowHue, 1f, 1f);
-            r.material.color = rainbowColor;
+            downloadedClips[i] = DownloadHandlerAudioClip.GetContent(www);
+            Debug.Log("Loaded audio: " + audioURLs[i]);
         }
         else
         {
-            // Calm down
-            r.material.color = Vector4.MoveTowards(r.material.color, Color.black, Time.deltaTime * 2f);
+            Debug.Log("Failed to load: " + www.error);
         }
     }
+}
 
-    void contactOtherCube(Collider other)
-    {
-        if (other.GetComponent<SillyCube>() != null)
-        {
-            angryTimer = angryDuration;
-            shakeStrength = Random.Range(0.1f, 0.3f);
-            soundCooldown = Mathf.Lerp(0.6f, 0.1f, angryTimer / angryDuration);
-
-            if (audioSource != null && downloadedClips.Length > 0)
-            {
-                AudioClip clipToPlay = downloadedClips[Random.Range(0, downloadedClips.Length)];
-                if (clipToPlay != null && Time.time - lastSoundTime > soundCooldown)
-                {
-                    audioSource.PlayOneShot(clipToPlay);
-                    lastSoundTime = Time.time;
-                }
-            }
-        }
-    }
-
-    // Loading multiple-files from URL
-    IEnumerator PreloadAudio()
-    {
-        downloadedClips = new AudioClip[audioURLs.Length];
-
-        for (int i = 0; i < audioURLs.Length; i++)
-        {
-            UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(audioURLs[i], AudioType.MPEG);
-            yield return www.SendWebRequest();
-
-            if (www.result == UnityWebRequest.Result.Success)
-            {
-                downloadedClips[i] = DownloadHandlerAudioClip.GetContent(www);
-                Debug.Log("Loaded audio: " + audioURLs[i]);
-            }
-            else
-            {
-                Debug.Log("Failed to load: " + www.error);
-            }
-        }
-    }
-
-    #endregion
+#endregion
 }
