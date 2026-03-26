@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.Networking;   // ---------------------------------------------------------- Luis Lencioni - Additions to the code. I had to add this in order to call sounds from URL. That's the only addition to the top here.
 
-public class SillyCube_LL: MonoBehaviour
+public class SillyCube_LL : MonoBehaviour
 {
     /// <summary>
     /// Rules of Silly Cube:
@@ -29,7 +29,10 @@ public class SillyCube_LL: MonoBehaviour
     //Audio Source
     AudioSource audioSource;
 
-    // Start is called before the first frame update
+    //Shake system
+    Vector3 shakeOffset = Vector3.zero;
+
+    //Start is called before the first frame update
     void Start()
     {
         startCube();
@@ -73,9 +76,12 @@ public class SillyCube_LL: MonoBehaviour
             agentTargetslow = Vector3.Lerp(agentTargetslow, agentTarget, Time.deltaTime);
             transform.position = Vector3.Lerp(transform.position, Camera.main.transform.position + (Camera.main.transform.forward * 10) + (agentTargetslow * 2f), Time.deltaTime);
         }
+
+        //Apply shake AFTER movement so it is not overridden
+        transform.position += shakeOffset;
     }
 
-    //detects when one cube touches another. Different from OnCollisionEnter. This detects intersections only, not collision.
+    //Detects when one cube touches another. Different from OnCollisionEnter. This detects intersections only, not collision.
     private void OnTriggerEnter(Collider other)
     {
         if (colliderReady)
@@ -85,7 +91,6 @@ public class SillyCube_LL: MonoBehaviour
         }
     }
 
-    //IEnumerators are coroutines that run outside of Update(). You can control your own timing and events in them. 
     IEnumerator changeRotation()
     {
         yield return new WaitForSeconds(1);
@@ -94,7 +99,6 @@ public class SillyCube_LL: MonoBehaviour
         // while(true) means this loop will be on for as long as the object exists.
         while (true)
         {
-            //detects if cube goes beyond 10units from the center. Automatically creates rotation looking at center.
             if (Vector3.Distance(transform.position, Vector3.zero) > maxDist)
             {
                 rotationTarget = Quaternion.LookRotation(Vector3.zero - transform.position, Vector3.up);
@@ -105,7 +109,6 @@ public class SillyCube_LL: MonoBehaviour
             }
             agentTarget = Random.insideUnitSphere;
 
-            //Every while() loop should include a 'yield null" or other yield type, otherwise Unity may crash if the logic never resolves.
             yield return new WaitForSeconds(Random.Range(0f, interval));
         }
     }
@@ -118,102 +121,137 @@ public class SillyCube_LL: MonoBehaviour
 
     // ---------------------------------------------------------- Luis Lencioni - Additions to the code ** Note I had to include an extra line at the top of the code. It is also highlighted.
 
-    //Audio Source
-    string[] audioURLs = new string[]
-    {
-       // "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/16f4546057f135a3b21db73926fa44d5c03b821a/Audios/freesound_community-funny-yay-6273.mp3",
-      //  "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/16f4546057f135a3b21db73926fa44d5c03b821a/Audios/freesound_community-angry-grunt-103204.mp3" ,
-       // "https://raw.githubusercontent.com/luislencioni-portfolio/SillyCubes/16f4546057f135a3b21db73926fa44d5c03b821a/Audios/freesound_community-fart-83471.mp3"
-    };
+    string[] audioURLs = new string[] { };
     AudioClip[] downloadedClips;
 
-Vector3 angryOffset;
-float angryTimer = 0f;
-float angryDuration = 0.5f;
-float shakeStrength = 0.2f;
-float rainbowHue = 0f;
-float rainbowSpeed = 2f;
-float soundCooldown = 2f;   
-float lastSoundTime = -10f;   
+    Vector3 angryOffset;
+    float angryTimer = 0f;
+    float angryDuration = 0.5f;
+    float shakeStrength = 0.2f;
+    float rainbowHue = 0f;
+    float rainbowSpeed = 2f;
+    float soundCooldown = 2f;
+    float lastSoundTime = -10f;
+    Material[] cubeMats;
+    Color[] originalBaseColors;
+    float emissionFadeSpeed = 10f;
+    float baseFadeSpeed = 15f;
+    public bool allowGlow = true;
 
-void startCube()
-{
-    GetComponent<Renderer>().material.color = Color.black;
-    audioSource = GetComponent<AudioSource>();
-    if (!audioSource)
+    void startCube()
     {
-        audioSource = gameObject.AddComponent<AudioSource>();
-    }
-}
+        Renderer r = GetComponent<Renderer>();
+        cubeMats = r.materials;
+        originalBaseColors = new Color[cubeMats.Length];
 
-void updateCube()
-{
-    Renderer r = GetComponent<Renderer>();
-
-    if (angryTimer > 0)
-    {
-        angryTimer -= Time.deltaTime;
-
-        // Shake effect
-        angryOffset = Random.insideUnitSphere * shakeStrength;
-        transform.position += angryOffset;
-
-        // Animate rainbow color
-        rainbowHue += Time.deltaTime * rainbowSpeed;
-        if (rainbowHue > 1f) rainbowHue -= 1f;
-        Color rainbowColor = Color.HSVToRGB(rainbowHue, 1f, 1f);
-        r.material.color = rainbowColor;
-    }
-    else
-    {
-        // Calm down
-        r.material.color = Vector4.MoveTowards(r.material.color, Color.black, Time.deltaTime * 2f);
-    }
-}
-
-void contactOtherCube(Collider other)
-{
-if (other is BoxCollider && gameObject.GetInstanceID() < other.gameObject.GetInstanceID())
-{
-    Debug.Log(name + " reacted to " + other.gameObject.name);
-
-    angryTimer = angryDuration;
-    shakeStrength = Random.Range(0.1f, 0.3f);
-
-    if (audioSource != null && downloadedClips != null && downloadedClips.Length > 0)
-    {
-        AudioClip clipToPlay = downloadedClips[Random.Range(0, downloadedClips.Length)];
-        if (clipToPlay != null && Time.time - lastSoundTime > soundCooldown)
+        for (int i = 0; i < cubeMats.Length; i++)
         {
-            audioSource.PlayOneShot(clipToPlay, 0.7f);
-            lastSoundTime = Time.time;
-            soundCooldown = Random.Range(1.5f, 3f);
+            cubeMats[i] = new Material(cubeMats[i]);
+            cubeMats[i].EnableKeyword("_EMISSION");
+            cubeMats[i].SetColor("_EmissionColor", Color.black);
+            originalBaseColors[i] = cubeMats[i].GetColor("_BaseColor");
         }
+
+        r.materials = cubeMats;
+
+        audioSource = GetComponent<AudioSource>();
+        if (!audioSource)
+            audioSource = gameObject.AddComponent<AudioSource>();
     }
-}
-}
 
-// Loading multiple-files from URL
-IEnumerator PreloadAudio()
-{
-    downloadedClips = new AudioClip[audioURLs.Length];
-
-    for (int i = 0; i < audioURLs.Length; i++)
+    void updateCube()
     {
-        UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(audioURLs[i], AudioType.MPEG);
-        yield return www.SendWebRequest();
+        if (cubeMats == null || cubeMats.Length == 0) return;
+        if (!allowGlow) return;
 
-        if (www.result == UnityWebRequest.Result.Success)
+        if (angryTimer > 0)
         {
-            downloadedClips[i] = DownloadHandlerAudioClip.GetContent(www);
-            Debug.Log("Loaded audio: " + audioURLs[i]);
+            angryTimer -= Time.deltaTime;
+
+            // ✅ FIXED SHAKE (no longer overridden)
+            shakeOffset = Vector3.Lerp(
+                shakeOffset,
+                Random.insideUnitSphere * shakeStrength,
+                Time.deltaTime * 20f
+            );
+
+            // Animate rainbow emission
+            rainbowHue += Time.deltaTime * rainbowSpeed;
+            if (rainbowHue > 1f) rainbowHue -= 1f;
+            Color rainbowColor = Color.HSVToRGB(rainbowHue, 1f, 1f);
+
+            for (int i = 0; i < cubeMats.Length; i++)
+            {
+                cubeMats[i].SetColor("_EmissionColor", rainbowColor * 3f); // ------ Glow intensity
+            }
         }
         else
         {
-            Debug.Log("Failed to load: " + www.error);
+            // Reset shake
+            shakeOffset = Vector3.zero;
+
+            for (int i = 0; i < cubeMats.Length; i++)
+            {
+                Color currentEmission = cubeMats[i].GetColor("_EmissionColor");
+                Vector4 newEmission = Vector4.MoveTowards(currentEmission, Color.black, Time.deltaTime * emissionFadeSpeed);
+                cubeMats[i].SetColor("_EmissionColor", newEmission);
+
+                Color currentBase = cubeMats[i].GetColor("_BaseColor");
+                Color targetBase = originalBaseColors[i];
+                Color newBase = Color.Lerp(currentBase, targetBase, Time.deltaTime * baseFadeSpeed);
+                cubeMats[i].SetColor("_BaseColor", newBase);
+            }
         }
     }
-}
 
-#endregion
+    void contactOtherCube(Collider other)
+    {
+        if (other is BoxCollider)
+        {
+            Debug.Log(name + " reacted to " + other.gameObject.name);
+
+            angryTimer = angryDuration;
+            shakeStrength = Random.Range(0.1f, 0.4f);
+            float intensity = Random.Range(0.2f, 1f); // you can improve this later
+
+            if (MusicManager.Instance != null)
+            {
+                MusicManager.Instance.OnCubeHit(intensity);
+            }
+
+            if (audioSource != null && downloadedClips != null && downloadedClips.Length > 0)
+            {
+                AudioClip clipToPlay = downloadedClips[Random.Range(0, downloadedClips.Length)];
+                if (clipToPlay != null && Time.time - lastSoundTime > soundCooldown)
+                {
+                    audioSource.PlayOneShot(clipToPlay, 0.7f);
+                    lastSoundTime = Time.time;
+                    soundCooldown = Random.Range(1.5f, 3f);
+                }
+            }
+        }
+    }
+
+    IEnumerator PreloadAudio()
+    {
+        downloadedClips = new AudioClip[audioURLs.Length];
+
+        for (int i = 0; i < audioURLs.Length; i++)
+        {
+            UnityWebRequest www = UnityWebRequestMultimedia.GetAudioClip(audioURLs[i], AudioType.MPEG);
+            yield return www.SendWebRequest();
+
+            if (www.result == UnityWebRequest.Result.Success)
+            {
+                downloadedClips[i] = DownloadHandlerAudioClip.GetContent(www);
+                Debug.Log("Loaded audio: " + audioURLs[i]);
+            }
+            else
+            {
+                Debug.Log("Failed to load: " + www.error);
+            }
+        }
+    }
+
+    #endregion
 }
