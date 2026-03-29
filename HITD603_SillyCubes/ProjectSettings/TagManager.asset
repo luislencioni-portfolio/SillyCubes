@@ -4,12 +4,12 @@
 TagManager:
   serializedVersion: 3
   tags:
-  - Cube
+  - BatRay
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Ray
   - Water
   - UI
   - 
