@@ -36,6 +36,8 @@ public class SpeechToTextModel : MonoBehaviour
     private bool ignoringPartialResults = false;
     private bool enableDebugLogs = false;
 
+    public AIGatekeeper gatekeeper; //_________________________________________________ Luis Lencioni Addition
+
     // Message queue (for main thread processing)
     private Queue<string> messageQueue = new Queue<string>();
 
@@ -289,7 +291,7 @@ public class SpeechToTextModel : MonoBehaviour
                     UpdateSubtitle(msg.text);
                 }
             }
-            else if (msg.type == "final")
+            /*else if (msg.type == "final")
             {
                 // Final recognition result
                 if (!string.IsNullOrEmpty(msg.text))
@@ -307,7 +309,37 @@ public class SpeechToTextModel : MonoBehaviour
                     // Send notification about final text
                     ResponseReceivedAction?.Invoke(msg.text);
                 }
+            }*/
+            else if (msg.type == "final") //__________________________________________________________ Luis Lencioni Modification
+            {
+                // Final recognition result
+                if (!string.IsNullOrEmpty(msg.text))
+                {
+                    Log($"Final result: {msg.text}");
+
+                    // Set flag to ignore subsequent partial messages for 1 second
+                    ignoringPartialResults = true;
+                    StartCoroutine(ResetPartialIgnoreFlag(1.0f));
+
+                    // Clear subtitle first, then update final text
+                    UpdateSubtitle("");
+                    UpdateFinalText(msg.text);
+
+                    // --- THE GATEKEEPER LOGIC START ---
+                    if (gatekeeper != null)
+                    {
+                        // Pass the text to the gatekeeper to check for "Computer"
+                        gatekeeper.CheckSpeech(msg.text);
+                    }
+                    else
+                    {
+                        // Fallback: If no gatekeeper is assigned, just send to AI like before
+                        ResponseReceivedAction?.Invoke(msg.text);
+                    }
+                    // --- THE GATEKEEPER LOGIC END ---
+                }
             }
+
             else if (msg.type == "pong")
             {
                 Log("Received pong");

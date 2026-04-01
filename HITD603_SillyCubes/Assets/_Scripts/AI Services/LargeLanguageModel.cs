@@ -12,6 +12,7 @@ public class LargeLanguageModel : MonoBehaviour
     [ColoredField(1f, 1f, 0f)]  // Bright yellow text
     public LLMModelType modelType = LLMModelType.Gemma3_12B;
 
+
     [Tooltip("Defines the AI's role and behavior")]
     [TextArea(3, 10)]
     public string systemPrompt = "";
@@ -30,6 +31,31 @@ public class LargeLanguageModel : MonoBehaviour
     public string stopSequence = "";
 
     public Action<string> ResponseReceivedAction;
+
+    public AIGatekeeper gatekeeper; //_______________________________________________________Luis Lencioni modificaton
+
+    private void Start()
+    {
+        if (gatekeeper != null)
+        {
+            gatekeeper.OnValidatedSpeech = (text) =>
+            {
+                Debug.Log("LLM received validated text: " + text);
+
+                // ADD THIS: Tell the UI script to show your text and ask the question
+                ExampleVoiceChat chat = GetComponent<ExampleVoiceChat>();
+                if (chat != null)
+                {
+                    chat.UserRequestReceived(text);
+                }
+                else
+                {
+                    // Fallback if component is missing
+                    AskQuestion(text);
+                }
+            };
+        }
+    }
 
     /// <summary>
     /// Accesses a large language model.
